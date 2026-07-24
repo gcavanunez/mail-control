@@ -29,7 +29,7 @@ export class MailService extends Context.Service<
     readonly archiveMessage: (messageId: string) => Effect.Effect<void, MailError>
     readonly trashMessage: (messageId: string) => Effect.Effect<void, MailError>
     readonly markMessageRead: (messageId: string) => Effect.Effect<void, MailError>
-    readonly unsubscribeFromMessage: (messageId: string) => Effect.Effect<"one-click" | "mailto", MailError>
+    readonly unsubscribeFromMessage: (messageId: string) => Effect.Effect<"one-click" | "mailto" | "web", MailError>
   }
 >()("@mail-control/MailService") {}
 

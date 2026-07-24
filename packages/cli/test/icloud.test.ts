@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { parseRawHeaders } from "../src/icloud.js"
+import { findUnsubscribeUrl, parseRawHeaders } from "../src/icloud.js"
 
 describe("parseRawHeaders", () => {
   it("parses simple header lines", () => {
@@ -25,5 +25,23 @@ describe("parseRawHeaders", () => {
     expect(headers.get("subject")).toBe("Hi")
     expect(headers.get("from")).toBe("a@b.com")
     expect(headers.size).toBe(2)
+  })
+})
+
+describe("findUnsubscribeUrl", () => {
+  it("decodes a quoted-printable unsubscribe link", () => {
+    expect(
+      findUnsubscribeUrl(
+        'Content-Transfer-Encoding: quoted-printable\r\n\r\n<a href=3D"https://example.com/unsubscribe?email=3Dkit%40example.com&token=3Dabc=\r\n123">Unsubscribe</a>',
+      ),
+    ).toBe("https://example.com/unsubscribe?email=kit%40example.com&token=abc123")
+  })
+
+  it("prefers an explicit unsubscribe URL over a tracking URL", () => {
+    expect(
+      findUnsubscribeUrl(
+        "Unsubscribe: https://tracking.example.com/click?token=abc https://example.com/unsubscribe?token=abc",
+      ),
+    ).toBe("https://example.com/unsubscribe?token=abc")
   })
 })

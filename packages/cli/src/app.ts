@@ -234,7 +234,7 @@ export const markMessageRead = (input: MutationInput): Effect.Effect<void, MailE
 
 export const unsubscribeFromMessage = (
   input: MutationInput,
-): Effect.Effect<"one-click" | "mailto", MailError, AccountEnv> =>
+): Effect.Effect<"one-click" | "mailto" | "web", MailError, AccountEnv> =>
   Effect.gen(function* () {
     const account = yield* requireAccount(input.account, "unsubscribe", "Unsubscribe")
     return yield* withAccount(account, (mail) => mail.unsubscribeFromMessage(input.id))

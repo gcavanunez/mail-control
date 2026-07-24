@@ -13,7 +13,7 @@ import type {
   SendMailInput,
 } from "./types.js"
 
-export type ICloudUnsubscribeMethod = "one-click" | "mailto"
+export type ICloudUnsubscribeMethod = "one-click" | "mailto" | "web"
 
 export interface ICloudUnsubscribeResult {
   method: ICloudUnsubscribeMethod
@@ -44,6 +44,18 @@ export const parseRawHeaders = (raw: string): Map<string, string> => {
     if (name) headers.set(name, value)
   }
   return headers
+}
+
+export const findUnsubscribeUrl = (raw: string) => {
+  const decoded = /content-transfer-encoding:\s*quoted-printable/i.test(raw)
+    ? raw
+        .replace(/=\r?\n/g, "")
+        .replace(/=([0-9a-f]{2})/gi, (_, hex: string) => String.fromCharCode(Number.parseInt(hex, 16)))
+    : raw
+  return decoded
+    .replaceAll("&amp;", "&")
+    .match(/https?:\/\/[^\s<>"']+/gi)
+    ?.find((candidate) => candidate.toLowerCase().includes("unsub"))
 }
 
 interface ICloudConnection {
@@ -184,16 +196,12 @@ export const makeICloudService = (
           try: async () => {
             await client.mailboxOpen(mailbox)
             const uid = Number(input.id)
-            const iterator = client.fetch([uid], { envelope: true, flags: true, bodyParts: ["TEXT"] }, { uid: true })
-            const result = await iterator.next()
-            if (result.done || !result.value) return undefined
-
-            const rawMessage = result.value as {
-              uid: number
-              envelope?: Envelope
-              flags?: Set<string>
-              bodyParts?: Map<string, Buffer>
-            }
+            const rawMessage = await client.fetchOne(
+              uid,
+              { envelope: true, flags: true, bodyParts: ["TEXT"] },
+              { uid: true },
+            )
+            if (!rawMessage) return undefined
             const bodyBuffer = rawMessage.bodyParts?.get("TEXT") ?? rawMessage.bodyParts?.values().next().value
             return {
               id: String(rawMessage.uid),
@@ -253,37 +261,32 @@ export const makeICloudService = (
   const unsubscribeFromMessage = (messageId: string): Effect.Effect<ICloudUnsubscribeResult, MailError> =>
     withClient((client, mailbox) =>
       Effect.gen(function* () {
-        const rawHeaders = yield* Effect.tryPromise({
+        const message = yield* Effect.tryPromise({
           try: async () => {
             await client.mailboxOpen(mailbox)
             const uid = Number(messageId)
-            const iterator = client.fetch(
-              [uid],
-              { headers: ["List-Unsubscribe", "List-Unsubscribe-Post"] },
+            const message = await client.fetchOne(
+              uid,
+              { headers: ["List-Unsubscribe", "List-Unsubscribe-Post"], bodyParts: ["TEXT"] },
               { uid: true },
             )
-            const result = await iterator.next()
-            if (result.done || !result.value) return undefined
-            const message = result.value as { headers?: Buffer }
-            return message.headers?.toString("utf8")
+            if (!message) return undefined
+            const body = message.bodyParts?.get("TEXT") ?? message.bodyParts?.values().next().value
+            return {
+              headers: message.headers?.toString("utf8") ?? "",
+              body: body?.toString("utf8") ?? "",
+            }
           },
           catch: mailError(`Failed to retrieve unsubscribe headers for iCloud message ${messageId}`),
         })
 
-        if (rawHeaders === undefined) {
+        if (message === undefined) {
           return yield* Effect.fail(new MailError({ message: `No iCloud message found with id ${messageId}` }))
         }
 
-        const headers = parseRawHeaders(rawHeaders)
+        const headers = parseRawHeaders(message.headers)
         const listUnsubscribe = headers.get("list-unsubscribe")
-
-        if (!listUnsubscribe) {
-          return yield* Effect.fail(
-            new MailError({ message: `Message ${messageId} does not provide a List-Unsubscribe header` }),
-          )
-        }
-
-        const destinations = parseListUnsubscribe(listUnsubscribe)
+        const destinations = listUnsubscribe ? parseListUnsubscribe(listUnsubscribe) : []
         const oneClick = headers.get("list-unsubscribe-post")?.toLowerCase().includes("list-unsubscribe=one-click")
         const httpsDestination = destinations.find((destination) => destination.protocol === "https:")
 
@@ -322,9 +325,23 @@ export const makeICloudService = (
           return { method: "mailto", destination: to }
         }
 
+        const webDestination = httpsDestination?.toString() ?? findUnsubscribeUrl(message.body)
+        if (webDestination) {
+          yield* Effect.tryPromise({
+            try: async () => {
+              const response = await fetch(webDestination, { redirect: "follow" })
+              if (!response.ok) {
+                throw new Error(`HTTP ${response.status} ${response.statusText}`)
+              }
+            },
+            catch: (cause) => new MailError({ message: `Web unsubscribe failed for message ${messageId}`, cause }),
+          })
+          return { method: "web", destination: webDestination }
+        }
+
         return yield* Effect.fail(
           new MailError({
-            message: `Message ${messageId} only provides an interactive web unsubscribe; no one-click or mailto option is available`,
+            message: `Message ${messageId} does not provide an actionable unsubscribe option`,
           }),
         )
       }),
