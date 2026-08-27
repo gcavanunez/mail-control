@@ -24,6 +24,14 @@ export interface MailMessageSummary {
   unread?: boolean
 }
 
+export interface Mailbox {
+  account: AccountId
+  id: string
+  name: string
+  kind: "system" | "user" | "imap"
+  specialUse?: string
+}
+
 export interface ListMailOptions {
   maxResults?: number
   status?: MailStatus

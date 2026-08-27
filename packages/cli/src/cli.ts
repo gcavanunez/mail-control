@@ -7,6 +7,7 @@ import {
   archiveMessage,
   downloadAttachments,
   forwardMessage,
+  listMailboxes,
   listMessages,
   type MutationInput,
   markMessageRead,
@@ -22,14 +23,14 @@ import { MailError, toMailError } from "./errors.js"
 import { filtersCommand } from "./filters.js"
 import { makeICloudService } from "./icloud.js"
 import { mailLayer } from "./layers.js"
-import { printDownloadResult, printJson, printMessage, printSummaries } from "./renderer.js"
+import { printDownloadResult, printJson, printMailboxes, printMessage, printSummaries } from "./renderer.js"
 import { Secrets, writeAppPassword } from "./secrets.js"
 import type { MailStatus } from "./types.js"
 
 const accountOption = Flag.String("account").pipe(
   Flag.withAlias("a"),
   Flag.withDefault("all"),
-  Flag.withDescription("Account id from your config.json, or 'all' (default) for read/list/search"),
+  Flag.withDescription("Account id from your config.json, or 'all' for multi-account reads"),
 )
 
 const maxOption = Flag.Int("max").pipe(
@@ -502,6 +503,13 @@ const accountsCommand = Command.make("accounts", {}, () =>
   }),
 )
 
+const mailboxesCommand = Command.make("mailboxes", { account: accountOption, json: jsonOption }, ({ account, json }) =>
+  Effect.gen(function* () {
+    const mailboxes = yield* listMailboxes(account)
+    yield* json ? printJson(mailboxes) : printMailboxes(mailboxes)
+  }),
+)
+
 const tuiCommand = Command.make("tui", {}, () =>
   Effect.tryPromise({
     try: async () => {
@@ -529,6 +537,7 @@ const root = Command.make("mail", {}).pipe(
     filtersCommand,
     authCommand,
     accountsCommand,
+    mailboxesCommand,
     tuiCommand,
   ]),
 )

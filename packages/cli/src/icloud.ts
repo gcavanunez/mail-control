@@ -7,6 +7,7 @@ import { MailError, mailError } from "./errors.js"
 import type {
   Attachment,
   ListMailOptions,
+  Mailbox,
   MailMessageBody,
   MailMessageSummary,
   ReadMailInput,
@@ -21,6 +22,7 @@ export interface ICloudUnsubscribeResult {
 }
 
 export interface ICloudServiceInterface {
+  readonly listMailboxes: () => Effect.Effect<Mailbox[], MailError>
   readonly listMessages: (options?: ListMailOptions) => Effect.Effect<MailMessageSummary[], MailError>
   readonly readMessage: (input: ReadMailInput) => Effect.Effect<MailMessageBody, MailError>
   readonly sendEmail: (input: SendMailInput) => Effect.Effect<void, MailError>
@@ -189,6 +191,23 @@ export const makeICloudService = (
       options?.mailbox,
     )
 
+  const listMailboxes = () =>
+    withClient((client) =>
+      Effect.tryPromise({
+        try: async () =>
+          (await client.list()).map(
+            (mailbox): Mailbox => ({
+              account: accountId,
+              id: mailbox.path,
+              name: mailbox.path,
+              kind: "imap",
+              ...(mailbox.specialUse ? { specialUse: mailbox.specialUse } : {}),
+            }),
+          ),
+        catch: mailError("Failed to list iCloud mailboxes"),
+      }),
+    )
+
   const readMessage = (input: ReadMailInput) =>
     withClient(
       (client, mailbox) =>
@@ -347,5 +366,5 @@ export const makeICloudService = (
       }),
     )
 
-  return { listMessages, readMessage, sendEmail, archiveMessage, trashMessage, unsubscribeFromMessage }
+  return { listMailboxes, listMessages, readMessage, sendEmail, archiveMessage, trashMessage, unsubscribeFromMessage }
 }

@@ -26,6 +26,7 @@ const makeGmail = (overrides: Partial<GmailServiceInterface> = {}): GmailService
 })
 
 const makeICloud = (overrides: Partial<ICloudServiceInterface> = {}): ICloudServiceInterface => ({
+  listMailboxes: () => Effect.succeed([]),
   listMessages: () => Effect.succeed([]),
   readMessage: () => Effect.die("not implemented"),
   sendEmail: () => Effect.void,
@@ -74,6 +75,33 @@ describe("Gmail mail search", () => {
     await Effect.runPromise(mail.listMessages({ query: "receipts", inboxOnly: false }))
 
     expect(listMessages).toHaveBeenCalledWith({ maxResults: 10, query: "receipts" })
+  })
+})
+
+describe("mailboxes", () => {
+  it("maps Gmail labels to provider-neutral mailboxes", async () => {
+    const mail = makeGmailMailService(
+      makeAccountId("gmail"),
+      makeGmail({
+        listLabels: () =>
+          Effect.succeed([
+            { id: "INBOX", name: "INBOX", type: "system" },
+            { id: "Label_7", name: "birdwatching", type: "user" },
+          ]),
+      }),
+    )
+
+    await expect(Effect.runPromise(mail.listMailboxes())).resolves.toEqual([
+      { account: "gmail", id: "INBOX", name: "INBOX", kind: "system" },
+      { account: "gmail", id: "Label_7", name: "birdwatching", kind: "user" },
+    ])
+  })
+
+  it("delegates iCloud mailbox listing", async () => {
+    const mailboxes = [{ account: makeAccountId("icloud"), id: "Archive", name: "Archive", kind: "imap" as const }]
+    const mail = makeICloudMailService(makeICloud({ listMailboxes: () => Effect.succeed(mailboxes) }))
+
+    await expect(Effect.runPromise(mail.listMailboxes())).resolves.toEqual(mailboxes)
   })
 })
 

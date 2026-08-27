@@ -121,6 +121,7 @@ IMAP/SMTP hosts default to iCloud's and can be overridden per account
 ```bash
 # Set up
 mail accounts               # list configured accounts and their setup status
+mail mailboxes [-a <id>|all] # list Gmail labels or iCloud IMAP mailboxes
 mail auth <id>              # authorize an account (Gmail OAuth / iCloud password)
 mail auth <id> --manual     # headless: paste a code instead of opening a browser
 mail tui                    # launch the interactive terminal inbox
@@ -187,6 +188,10 @@ machine-readable output. Use `-f/--body-file` for long message bodies.
 For Gmail, `--mailbox` on `list`, `search`, and `recent` selects a label and
 replaces the default `INBOX` constraint. For iCloud, it selects an IMAP mailbox
 and also applies to `read`.
+
+Run `mail mailboxes -a <id>` to discover accepted mailbox names. Gmail returns
+system and user labels; iCloud returns IMAP mailboxes. Add `--json` for IDs,
+kinds, and special-use metadata.
 
 Capabilities are determined by account **type**: Gmail supports every command,
 including `filters`; iCloud supports read, send, archive, trash, and unsubscribe

@@ -9,9 +9,9 @@ import {
   type SendComposeInput,
 } from "./compose.js"
 import { Accounts, type ResolvedAccount } from "./config.js"
-import { MailError } from "./errors.js"
+import { MailError, toMailError } from "./errors.js"
 import { combineGmailQuery, isOnOrAfter, parseDuration } from "./time.js"
-import type { ListMailOptions, MailMessageBody, MailMessageSummary, MailStatus } from "./types.js"
+import type { ListMailOptions, Mailbox, MailMessageBody, MailMessageSummary, MailStatus } from "./types.js"
 
 export interface ListInput {
   readonly account: string
@@ -66,6 +66,17 @@ export interface DownloadResult {
     readonly path: string
   }[]
 }
+
+const mailboxesForAccount = (account: ResolvedAccount) => withAccount(account, (mail) => mail.listMailboxes())
+
+export const listMailboxes = (selection: string): Effect.Effect<readonly Mailbox[], MailError, AccountEnv> =>
+  Effect.gen(function* () {
+    const accounts = yield* Accounts
+    const selected =
+      selection === "all" ? accounts.all : [yield* accounts.get(selection).pipe(Effect.mapError(toMailError))]
+    const mailboxes = yield* Effect.forEach(selected, mailboxesForAccount, { concurrency: "unbounded" })
+    return mailboxes.flat().sort((a, b) => a.account.localeCompare(b.account) || a.name.localeCompare(b.name))
+  })
 
 const baseOptionsFrom = (input: ListInput): ListMailOptions => ({
   maxResults: input.maxResults,

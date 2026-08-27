@@ -1,7 +1,7 @@
 import { Console, Effect } from "effect"
 import type { DownloadResult } from "./app.js"
 import { createColorizer } from "./support.js"
-import type { AccountId, MailMessageBody, MailMessageSummary } from "./types.js"
+import type { AccountId, Mailbox, MailMessageBody, MailMessageSummary } from "./types.js"
 
 const { colorize } = createColorizer()
 const dim = colorize(2)
@@ -22,6 +22,18 @@ const statusOf = (message: { unread?: boolean }): "read" | "unread" | "unknown" 
   message.unread === undefined ? "unknown" : message.unread ? "unread" : "read"
 
 export const printJson = (value: unknown) => Console.log(JSON.stringify(value, null, 2))
+
+export const printMailboxes = (mailboxes: readonly Mailbox[]) =>
+  Effect.gen(function* () {
+    if (mailboxes.length === 0) {
+      yield* Console.log("No mailboxes found.")
+      return
+    }
+
+    for (const mailbox of mailboxes) {
+      yield* Console.log(`• ${formatAccount(mailbox.account)} ${mailbox.name} (${mailbox.specialUse ?? mailbox.kind})`)
+    }
+  })
 
 export const printSummaries = (messages: readonly MailMessageSummary[]) =>
   Effect.gen(function* () {

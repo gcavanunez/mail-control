@@ -25,6 +25,7 @@ directory with `MAIL_CONTROL_DIR`). Each account has an id (the map key) and a
 - Pass `-a <id>` / `--account <id>` whenever the account matters.
 - `all` is the default for `list`, `search`, and `recent`; use a concrete id for single-message mutations.
 - Discover configured ids by reading `config.json` or running a command and seeing the `[id]` tags in output.
+- Discover mailbox names with `mail mailboxes -a <id>`; add `--json` for provider metadata.
 - Capabilities depend on type: Gmail supports every command, including `filters`; iCloud supports read, send, archive, and trash.
 - For Gmail label views, pass `--mailbox <label>` to `list`, `search`, or `recent`.
 - For iCloud mailbox-specific reads/lists/searches, pass `--mailbox <name>` (e.g. `"Sent Messages"`, `Archive`).

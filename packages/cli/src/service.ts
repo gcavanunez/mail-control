@@ -5,6 +5,7 @@ import { MailError, mailError } from "./errors.js"
 import type { ICloudServiceInterface } from "./icloud.js"
 import type {
   ListMailOptions,
+  Mailbox,
   MailMessageBody,
   MailMessageSummary,
   ReadMailInput,
@@ -22,6 +23,7 @@ export class MailService extends Context.Service<
   MailService,
   {
     readonly listMessages: (options?: ListMailOptions) => Effect.Effect<readonly MailMessageSummary[], MailError>
+    readonly listMailboxes: () => Effect.Effect<readonly Mailbox[], MailError>
     readonly readMessage: (input: ReadMailInput) => Effect.Effect<MailMessageBody, MailError>
     readonly sendEmail: (input: SendMailInput) => Effect.Effect<void, MailError>
     readonly replyToEmail: (input: ReplyMailInput) => Effect.Effect<void, MailError>
@@ -74,6 +76,14 @@ const toMailBody = (message: GmailMessageBody): MailMessageBody => ({
 })
 
 export const makeGmailMailService = (account: AccountId, gmail: GmailServiceInterface) => {
+  const listMailboxes = () =>
+    gmail.listLabels().pipe(
+      Effect.map((labels) =>
+        labels.map((label): Mailbox => ({ account, id: label.id, name: label.name, kind: label.type === "system" ? "system" : "user" })),
+      ),
+      Effect.mapError(mailError("Failed to list Gmail mailboxes")),
+    )
+
   const listMessages = (options?: ListMailOptions) =>
     Effect.gen(function* () {
       const status = options?.status ?? "all"
@@ -140,6 +150,7 @@ export const makeGmailMailService = (account: AccountId, gmail: GmailServiceInte
     )
 
   return MailService.of({
+    listMailboxes,
     listMessages,
     readMessage,
     sendEmail,
@@ -159,6 +170,7 @@ const icloudUnsupported = (capability: string) =>
 // widens it to the unified surface and stubs the capabilities iCloud lacks.
 export const makeICloudMailService = (icloud: ICloudServiceInterface) =>
   MailService.of({
+    listMailboxes: icloud.listMailboxes,
     listMessages: icloud.listMessages,
     readMessage: icloud.readMessage,
     sendEmail: icloud.sendEmail,
