@@ -74,11 +74,30 @@ const baseOptionsFrom = (input: ListInput): ListMailOptions => ({
   ...(input.mailbox !== undefined ? { mailbox: input.mailbox } : {}),
 })
 
-/** Gmail broadens beyond the inbox when searching; other types ignore the flag. */
-const optionsFor = (account: ResolvedAccount, base: ListMailOptions, scope: "inbox" | "search"): ListMailOptions => ({
-  ...base,
-  ...(account.config.type === "gmail" && scope === "search" ? { inboxOnly: false } : {}),
-})
+/** Resolve provider-specific mailbox and search semantics. */
+export const gmailLabelQuery = (label: string) => `label:"${label.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`
+
+export const optionsFor = (
+  account: ResolvedAccount,
+  base: ListMailOptions,
+  scope: "inbox" | "search",
+): ListMailOptions => {
+  if (account.config.type !== "gmail") return base
+
+  const { mailbox, ...options } = base
+  if (mailbox !== undefined) {
+    return {
+      ...options,
+      inboxOnly: false,
+      query: combineGmailQuery(gmailLabelQuery(mailbox), options.query),
+    }
+  }
+
+  return {
+    ...options,
+    ...(scope === "search" ? { inboxOnly: false } : {}),
+  }
+}
 
 const listForAccount = (account: ResolvedAccount, options: ListMailOptions) =>
   withAccount(account, (mail) => mail.listMessages(options))

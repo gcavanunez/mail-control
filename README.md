@@ -127,10 +127,13 @@ mail tui                    # launch the interactive terminal inbox
 
 # Read
 mail list    [-a <id>|all] [--unread|--read] [-q query] [--max N] [--mailbox M]
-mail search  [-a <id>|all] <query> [--max N]        # searches beyond the inbox
-mail recent  [-a <id>|all] --since 24h [--max N]    # 24h, 2d, 6w, 12mo, 1y
+mail search  [-a <id>|all] <query> [--max N] [--mailbox M]  # searches beyond the inbox
+mail recent  [-a <id>|all] --since 24h [--max N] [--mailbox M]
 mail read     -a <id> <message-id> [--mailbox M]
 mail download -a <id> <message-id> -o ./dir
+
+# Treat a Gmail label as a mailbox
+mail list -a personal --mailbox "project-mail" --max 9
 
 # Write (Gmail supports all; iCloud supports send)
 mail send    -a <id> -t to@x.com -s "Subject" -b "Body" [-A file]
@@ -180,6 +183,10 @@ body without creating labels or the filter. Gmail filters cannot send mail to Sp
 `-a/--account` accepts any id from your config, or `all` (default for
 `list`/`search`/`recent`). Add `--json` to any read/mutation command for
 machine-readable output. Use `-f/--body-file` for long message bodies.
+
+For Gmail, `--mailbox` on `list`, `search`, and `recent` selects a label and
+replaces the default `INBOX` constraint. For iCloud, it selects an IMAP mailbox
+and also applies to `read`.
 
 Capabilities are determined by account **type**: Gmail supports every command,
 including `filters`; iCloud supports read, send, archive, trash, and unsubscribe

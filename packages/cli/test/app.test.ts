@@ -1,6 +1,7 @@
 import { Effect, Exit } from "effect"
 import { describe, expect, it } from "vitest"
-import { mergeAccountListResults } from "../src/app.js"
+import { gmailLabelQuery, mergeAccountListResults, optionsFor } from "../src/app.js"
+import { makeAccountId, type ResolvedAccount } from "../src/config.js"
 import { MailError, type MailMessageSummary } from "../src/types.js"
 
 const summary = (overrides: Partial<MailMessageSummary>): MailMessageSummary => ({
@@ -38,5 +39,34 @@ describe("mergeAccountListResults", () => {
         ),
       ),
     ).rejects.toBeInstanceOf(MailError)
+  })
+})
+
+describe("provider mailbox options", () => {
+  const gmail: ResolvedAccount = { id: makeAccountId("personal"), config: { type: "gmail" } }
+  const icloud: ResolvedAccount = {
+    id: makeAccountId("icloud"),
+    config: { type: "icloud", email: "person@example.com" },
+  }
+
+  it("treats a Gmail mailbox as a label outside the default inbox", () => {
+    expect(
+      optionsFor(gmail, { mailbox: "project@mail.example.com", maxResults: 9, query: "is:unread" }, "inbox"),
+    ).toEqual({
+      inboxOnly: false,
+      maxResults: 9,
+      query: 'label:"project@mail.example.com" is:unread',
+    })
+  })
+
+  it("quotes Gmail labels used in search queries", () => {
+    expect(gmailLabelQuery('Customer "Priority"')).toBe('label:"Customer \\"Priority\\""')
+  })
+
+  it("preserves iCloud mailbox options", () => {
+    expect(optionsFor(icloud, { mailbox: "Sent Messages", maxResults: 9 }, "inbox")).toEqual({
+      mailbox: "Sent Messages",
+      maxResults: 9,
+    })
   })
 })

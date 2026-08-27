@@ -60,7 +60,12 @@ const sinceOption = Flag.String("since").pipe(
 
 const mailboxOption = Flag.String("mailbox").pipe(
   Flag.optional,
-  Flag.withDescription("Mailbox to query (iCloud only, default INBOX)"),
+  Flag.withDescription("Gmail label or iCloud mailbox to query"),
+)
+
+const readMailboxOption = Flag.String("mailbox").pipe(
+  Flag.optional,
+  Flag.withDescription("iCloud mailbox containing the message"),
 )
 
 const toOption = Flag.String("to").pipe(
@@ -255,7 +260,7 @@ const readCommand = Command.make(
   {
     account: accountOption,
     id: Argument.String("id").pipe(Argument.withDescription("Message id")),
-    mailbox: mailboxOption,
+    mailbox: readMailboxOption,
     json: jsonOption,
   },
   ({ account, id, mailbox, json }) =>

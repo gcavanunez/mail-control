@@ -26,6 +26,7 @@ directory with `MAIL_CONTROL_DIR`). Each account has an id (the map key) and a
 - `all` is the default for `list`, `search`, and `recent`; use a concrete id for single-message mutations.
 - Discover configured ids by reading `config.json` or running a command and seeing the `[id]` tags in output.
 - Capabilities depend on type: Gmail supports every command, including `filters`; iCloud supports read, send, archive, and trash.
+- For Gmail label views, pass `--mailbox <label>` to `list`, `search`, or `recent`.
 - For iCloud mailbox-specific reads/lists/searches, pass `--mailbox <name>` (e.g. `"Sent Messages"`, `Archive`).
 
 ## Credentials
@@ -45,6 +46,7 @@ Finding mail:
 mail list                          # inbox-scoped listing, all accounts
 mail list -a personal --unread
 mail list -a work -q "from:someone@example.com"
+mail list -a personal --mailbox "receipts"
 mail search "invoice"              # broader search, not inbox-only
 mail recent --since 24h
 mail recent --since 48h --json
