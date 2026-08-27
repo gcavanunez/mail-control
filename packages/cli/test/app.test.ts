@@ -46,21 +46,21 @@ describe("provider mailbox options", () => {
   const gmail: ResolvedAccount = { id: makeAccountId("personal"), config: { type: "gmail" } }
   const icloud: ResolvedAccount = {
     id: makeAccountId("icloud"),
-    config: { type: "icloud", email: "person@example.com" },
+    config: { type: "icloud", email: "otter@example.net" },
   }
 
   it("treats a Gmail mailbox as a label outside the default inbox", () => {
     expect(
-      optionsFor(gmail, { mailbox: "project@mail.example.com", maxResults: 9, query: "is:unread" }, "inbox"),
+      optionsFor(gmail, { mailbox: "copper-owl@example.net", maxResults: 9, query: "is:unread" }, "inbox"),
     ).toEqual({
       inboxOnly: false,
       maxResults: 9,
-      query: 'label:"project@mail.example.com" is:unread',
+      query: 'label:"copper-owl@example.net" is:unread',
     })
   })
 
   it("quotes Gmail labels used in search queries", () => {
-    expect(gmailLabelQuery('Customer "Priority"')).toBe('label:"Customer \\"Priority\\""')
+    expect(gmailLabelQuery('Owls "Night"')).toBe('label:"Owls \\"Night\\""')
   })
 
   it("preserves iCloud mailbox options", () => {

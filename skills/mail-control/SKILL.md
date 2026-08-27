@@ -46,7 +46,7 @@ Finding mail:
 mail list                          # inbox-scoped listing, all accounts
 mail list -a personal --unread
 mail list -a work -q "from:someone@example.com"
-mail list -a personal --mailbox "receipts"
+mail list -a personal --mailbox "birdwatching"
 mail search "invoice"              # broader search, not inbox-only
 mail recent --since 24h
 mail recent --since 48h --json

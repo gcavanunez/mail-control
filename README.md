@@ -133,7 +133,7 @@ mail read     -a <id> <message-id> [--mailbox M]
 mail download -a <id> <message-id> -o ./dir
 
 # Treat a Gmail label as a mailbox
-mail list -a personal --mailbox "project-mail" --max 9
+mail list -a personal --mailbox "birdwatching" --max 9
 
 # Write (Gmail supports all; iCloud supports send)
 mail send    -a <id> -t to@x.com -s "Subject" -b "Body" [-A file]
