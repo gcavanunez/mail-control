@@ -93,6 +93,12 @@ export const optionsFor = (
   base: ListMailOptions,
   scope: "inbox" | "search",
 ): ListMailOptions => {
+  if (account.config.type === "gmail-imap") {
+    return {
+      ...base,
+      ...(base.mailbox === undefined && scope === "search" ? { inboxOnly: false } : {}),
+    }
+  }
   if (account.config.type !== "gmail") return base
 
   const { mailbox, ...options } = base
@@ -212,6 +218,29 @@ export const forwardMessage = (
     )
   })
 
+export const safeAttachmentFilenames = (filenames: readonly string[]): readonly string[] => {
+  const used = new Set<string>()
+  return filenames.map((filename, index) => {
+    const leaf = filename.replaceAll("\\", "/").split("/").at(-1)?.trim() ?? ""
+    const cleaned = Array.from(leaf, (character) => {
+      const code = character.charCodeAt(0)
+      return code < 32 || code === 127 ? "_" : character
+    }).join("")
+    const base = cleaned === "" || cleaned === "." || cleaned === ".." ? `attachment-${index + 1}` : cleaned
+    const extensionIndex = base.lastIndexOf(".")
+    const stem = extensionIndex > 0 ? base.slice(0, extensionIndex) : base
+    const extension = extensionIndex > 0 ? base.slice(extensionIndex) : ""
+    let candidate = base
+    let occurrence = 2
+    while (used.has(candidate.toLowerCase())) {
+      candidate = `${stem}-${occurrence}${extension}`
+      occurrence += 1
+    }
+    used.add(candidate.toLowerCase())
+    return candidate
+  })
+}
+
 export const downloadAttachments = (
   input: DownloadInput,
 ): Effect.Effect<DownloadResult, MailError, AccountEnv | FileSystem.FileSystem | Path.Path> =>
@@ -226,20 +255,31 @@ export const downloadAttachments = (
     }
 
     yield* fs.makeDirectory(input.outputDir, { recursive: true }).pipe(Effect.ignore)
+    const filenames = safeAttachmentFilenames(attachments.map((attachment) => attachment.filename))
     const files = yield* Effect.all(
-      attachments.map((attachment) =>
+      attachments.map((attachment, index) =>
         Effect.gen(function* () {
-          const filePath = pathService.join(input.outputDir, attachment.filename)
+          const base = filenames[index] ?? `attachment-${index + 1}`
+          const extensionIndex = base.lastIndexOf(".")
+          const stem = extensionIndex > 0 ? base.slice(0, extensionIndex) : base
+          const extension = extensionIndex > 0 ? base.slice(extensionIndex) : ""
+          let occurrence = 1
+          let filename = base
+          let filePath = pathService.join(input.outputDir, filename)
+          while (yield* fs.exists(filePath).pipe(Effect.orElseSucceed(() => false))) {
+            occurrence += 1
+            filename = `${stem}-${occurrence}${extension}`
+            filePath = pathService.join(input.outputDir, filename)
+          }
           yield* fs
-            .writeFile(filePath, new Uint8Array(attachment.content))
+            .writeFile(filePath, new Uint8Array(attachment.content), { flag: "wx" })
             .pipe(
-              Effect.mapError(
-                (cause) => new MailError({ message: `Failed to write attachment ${attachment.filename}`, cause }),
-              ),
+              Effect.mapError((cause) => new MailError({ message: `Failed to write attachment ${filename}`, cause })),
             )
-          return { filename: attachment.filename, path: filePath }
+          return { filename, path: filePath }
         }),
       ),
+      { concurrency: 1 },
     )
     return { files }
   })

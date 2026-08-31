@@ -1,6 +1,6 @@
 import { Effect, Exit } from "effect"
 import { describe, expect, it } from "vitest"
-import { gmailLabelQuery, mergeAccountListResults, optionsFor } from "../src/app.js"
+import { gmailLabelQuery, mergeAccountListResults, optionsFor, safeAttachmentFilenames } from "../src/app.js"
 import { makeAccountId, type ResolvedAccount } from "../src/config.js"
 import { MailError, type MailMessageSummary } from "../src/types.js"
 
@@ -48,6 +48,10 @@ describe("provider mailbox options", () => {
     id: makeAccountId("icloud"),
     config: { type: "icloud", email: "otter@example.net" },
   }
+  const gmailImap: ResolvedAccount = {
+    id: makeAccountId("gmail-imap"),
+    config: { type: "gmail-imap", email: "swift@example.net" },
+  }
 
   it("treats a Gmail mailbox as a label outside the default inbox", () => {
     expect(
@@ -68,5 +72,25 @@ describe("provider mailbox options", () => {
       mailbox: "Sent Messages",
       maxResults: 9,
     })
+  })
+
+  it("searches Gmail IMAP all-mail unless a mailbox is selected", () => {
+    expect(optionsFor(gmailImap, { query: "receipts", maxResults: 9 }, "search")).toEqual({
+      inboxOnly: false,
+      query: "receipts",
+      maxResults: 9,
+    })
+    expect(optionsFor(gmailImap, { mailbox: "birdwatching", query: "owls" }, "search")).toEqual({
+      mailbox: "birdwatching",
+      query: "owls",
+    })
+  })
+})
+
+describe("attachment filenames", () => {
+  it("contains untrusted paths and disambiguates duplicates", () => {
+    expect(
+      safeAttachmentFilenames(["../../authorized_keys", "..\\..\\report.pdf", "report.pdf", "report-2.pdf", "\u0000"]),
+    ).toEqual(["authorized_keys", "report.pdf", "report-2.pdf", "report-2-2.pdf", "_"])
   })
 })

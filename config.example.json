@@ -8,6 +8,11 @@
       "credentialsPath": "~/.mail-control/work-credentials.json",
       "tokenPath": "~/.mail-control/work-token.json"
     },
+    "gmail-imap": {
+      "type": "gmail-imap",
+      "email": "you@gmail.com",
+      "smtpEnabled": false
+    },
     "icloud": {
       "type": "icloud",
       "email": "you@icloud.com"

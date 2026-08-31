@@ -79,7 +79,14 @@ export const makeGmailMailService = (account: AccountId, gmail: GmailServiceInte
   const listMailboxes = () =>
     gmail.listLabels().pipe(
       Effect.map((labels) =>
-        labels.map((label): Mailbox => ({ account, id: label.id, name: label.name, kind: label.type === "system" ? "system" : "user" })),
+        labels.map(
+          (label): Mailbox => ({
+            account,
+            id: label.id,
+            name: label.name,
+            kind: label.type === "system" ? "system" : "user",
+          }),
+        ),
       ),
       Effect.mapError(mailError("Failed to list Gmail mailboxes")),
     )

@@ -21,6 +21,7 @@ import {
 import { Accounts } from "./config.js"
 import { MailError, toMailError } from "./errors.js"
 import { filtersCommand } from "./filters.js"
+import { makeGmailImapMailService } from "./gmail-imap.js"
 import { makeICloudService } from "./icloud.js"
 import { mailLayer } from "./layers.js"
 import { printDownloadResult, printJson, printMailboxes, printMessage, printSummaries } from "./renderer.js"
@@ -61,12 +62,12 @@ const sinceOption = Flag.String("since").pipe(
 
 const mailboxOption = Flag.String("mailbox").pipe(
   Flag.optional,
-  Flag.withDescription("Gmail label or iCloud mailbox to query"),
+  Flag.withDescription("Gmail label or IMAP mailbox to query"),
 )
 
 const readMailboxOption = Flag.String("mailbox").pipe(
   Flag.optional,
-  Flag.withDescription("iCloud mailbox containing the message"),
+  Flag.withDescription("IMAP mailbox containing the message"),
 )
 
 const toOption = Flag.String("to").pipe(
@@ -450,11 +451,14 @@ const authCommand = Command.make(
         yield* withAccount(resolved, (mail) => mail.listMessages({ maxResults: 1 }))
       } else {
         yield* Console.log(
-          `Create an app-specific password at https://appleid.apple.com (Sign-In and Security → App-Specific Passwords).`,
+          config.type === "gmail-imap"
+            ? "Create a Google app password at https://myaccount.google.com/apppasswords (2-Step Verification is required)."
+            : "Create an app-specific password at https://appleid.apple.com (Sign-In and Security → App-Specific Passwords).",
         )
-        const password = process.stdin.isTTY
+        const enteredPassword = process.stdin.isTTY
           ? yield* promptHidden(`App password for "${resolved.id}": `)
           : yield* readAllStdin
+        const password = config.type === "gmail-imap" ? enteredPassword.replaceAll(" ", "") : enteredPassword
         if (password.length === 0) {
           return yield* Effect.fail(new MailError({ message: "No app password provided." }))
         }
@@ -465,7 +469,11 @@ const authCommand = Command.make(
         // The Secrets layer cached secrets.json at startup, so verify with the
         // password just entered rather than the now-stale cached lookup.
         yield* Console.log(`Verifying "${resolved.id}"...`)
-        yield* makeICloudService(resolved.id, config, Redacted.make(password)).listMessages({ maxResults: 1 })
+        if (config.type === "gmail-imap") {
+          yield* makeGmailImapMailService(resolved.id, config, Redacted.make(password)).listMessages({ maxResults: 1 })
+        } else {
+          yield* makeICloudService(resolved.id, config, Redacted.make(password)).listMessages({ maxResults: 1 })
+        }
       }
 
       yield* Console.log(`✅ ${resolved.id} is ready`)
@@ -496,9 +504,12 @@ const accountsCommand = Command.make("accounts", {}, () =>
           Effect.as(true),
           Effect.orElseSucceed(() => false),
         )
-        return hasPassword ? "ready" : `needs app password (run: mail auth ${account.id})`
+        if (!hasPassword) return `needs app password (run: mail auth ${account.id})`
+        return account.config.type === "gmail-imap" && account.config.smtpEnabled !== true
+          ? "ready (SMTP disabled)"
+          : "ready"
       })
-      yield* Console.log(`${account.id.padEnd(14)} ${account.config.type.padEnd(7)} ${status}`)
+      yield* Console.log(`${account.id.padEnd(14)} ${account.config.type.padEnd(11)} ${status}`)
     }
   }),
 )

@@ -1,6 +1,6 @@
 ---
 name: mail-control
-description: Use the local mail-control CLI for Gmail and iCloud email tasks. Use when asked to list, search, read, inspect recent mail, unsubscribe, trash/delete mail, send, reply, forward, download attachments, archive, mark read, manage Gmail filters, set up mail accounts, debug mail-control, or operate email from the terminal instead of a browser.
+description: Use the local mail-control CLI for Gmail API, Gmail IMAP/SMTP, and iCloud email tasks. Use when asked to list, search, read, inspect recent mail, unsubscribe, trash/delete mail, send, reply, forward, download attachments, archive, mark read, manage Gmail filters, set up mail accounts, debug mail-control, or operate email from the terminal instead of a browser.
 ---
 
 # Mail Control
@@ -20,15 +20,15 @@ The `-t` / `--to` option accepts either an email address or an exact Apple Conta
 
 Accounts are defined by the user in `~/.mail-control/config.json` (override the
 directory with `MAIL_CONTROL_DIR`). Each account has an id (the map key) and a
-`type` of `gmail` or `icloud`.
+`type` of `gmail`, `gmail-imap`, or `icloud`.
 
 - Pass `-a <id>` / `--account <id>` whenever the account matters.
 - `all` is the default for `list`, `search`, and `recent`; use a concrete id for single-message mutations.
 - Discover configured ids by reading `config.json` or running a command and seeing the `[id]` tags in output.
 - Discover mailbox names with `mail mailboxes -a <id>`; add `--json` for provider metadata.
-- Capabilities depend on type: Gmail supports every command, including `filters`; iCloud supports read, send, archive, and trash.
+- Capabilities depend on type: Gmail API supports every command, including `filters`; Gmail IMAP supports read and mutation commands plus sending when `smtpEnabled` is true; iCloud supports read, send, archive, and trash.
 - For Gmail label views, pass `--mailbox <label>` to `list`, `search`, or `recent`.
-- For iCloud mailbox-specific reads/lists/searches, pass `--mailbox <name>` (e.g. `"Sent Messages"`, `Archive`).
+- For Gmail IMAP or iCloud mailbox-specific reads/lists/searches, pass `--mailbox <name>`.
 
 ## Credentials
 
@@ -36,8 +36,9 @@ Do not print credential, token, or password contents.
 
 - `config.json` holds identity only (safe to share). Secrets never live there.
 - Run `mail accounts` to see, per account, whether it is `ready` or what setup it still needs.
-- Run `mail auth <id>` to set an account up: for Gmail it runs the OAuth browser flow (or `--manual` for headless) after guiding credential creation; for iCloud it prompts for the app-specific password and writes `~/.mail-control/secrets.json` (0600). Both verify by reading one message.
-- Under the hood: Gmail uses OAuth credential + token JSON (`credentialsPath` / `tokenPath`, default `~/.mail-control/<id>-credentials.json` and `<id>-token.json`); iCloud resolves its password from `MAIL_<ID>_APP_PASSWORD` (or the account's `appPasswordEnv`) then `secrets.json`.
+- Run `mail auth <id>` to set an account up: Gmail API runs OAuth; Gmail IMAP and iCloud prompt for an app password and write `~/.mail-control/secrets.json` (0600). All flows verify by listing one message.
+- Gmail IMAP requires Google 2-Step Verification. SMTP is disabled unless the account sets `smtpEnabled: true`.
+- Under the hood: Gmail API uses OAuth credential + token JSON; password accounts resolve `MAIL_<ID>_APP_PASSWORD` (or `appPasswordEnv`) before `secrets.json`.
 
 ## Workflows
 
@@ -145,7 +146,7 @@ mail filters delete -a work <filter-id>
 - Prefer `list`, `search`, and `read` before acting on a message unless the user gives an exact account and message ID.
 - Never run `trash` or other destructive mail commands unless the user clearly approved the specific sender/message/action.
 - Use `-f <body-file>` for longer drafted emails so the body is inspectable and shell quoting is not fragile.
-- Never expose secrets from `~/.mail-control`, `.env`, Gmail tokens, OAuth credentials, or iCloud app passwords.
+- Never expose secrets from `~/.mail-control`, `.env`, Gmail tokens, OAuth credentials, or app passwords.
 
 ## Self-Iteration
 

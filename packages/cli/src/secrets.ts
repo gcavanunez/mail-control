@@ -4,8 +4,8 @@ import { Accounts, type ResolvedAccount, readJsonFile } from "./config.js"
 import { MailConfigError, mailConfigError } from "./errors.js"
 
 /**
- * Shape of `~/.mail-control/secrets.json` (written 0600). Secrets never live in
- * `config.json` so that the identity config stays safe to share or commit.
+ * Shape of `~/.mail-control/secrets.json` (written 0600). App passwords never
+ * live in `config.json` so that the identity config stays safe to share.
  */
 export const SecretsFile = Schema.Struct({
   accounts: Schema.optionalKey(
@@ -29,6 +29,9 @@ export const writeAppPassword = (
     const fs = yield* FileSystem.FileSystem
     const secretsPath = path.join(dir, "secrets.json")
     const exists = yield* fs.exists(secretsPath).pipe(Effect.orElseSucceed(() => false))
+    if (exists) {
+      yield* fs.chmod(secretsPath, 0o600).pipe(Effect.mapError(mailConfigError(`Failed to secure ${secretsPath}`)))
+    }
     const existing = exists
       ? yield* readJsonFile(secretsPath, SecretsFile, "secrets")
       : ({ accounts: {} } satisfies SecretsFile)
@@ -39,17 +42,18 @@ export const writeAppPassword = (
     yield* fs
       .writeFileString(secretsPath, `${JSON.stringify(next, null, 2)}\n`, { mode: 0o600 })
       .pipe(Effect.mapError(mailConfigError(`Failed to write ${secretsPath}`)))
+    yield* fs.chmod(secretsPath, 0o600).pipe(Effect.mapError(mailConfigError(`Failed to secure ${secretsPath}`)))
     return secretsPath
   })
 
 /** The env var consulted for an account's app password (override or derived). */
 export const appPasswordEnvVar = (account: ResolvedAccount): string =>
-  account.config.type === "icloud" && account.config.appPasswordEnv !== undefined
+  account.config.type !== "gmail" && account.config.appPasswordEnv !== undefined
     ? account.config.appPasswordEnv
     : `MAIL_${account.id.toUpperCase().replace(/[^A-Z0-9]+/g, "_")}_APP_PASSWORD`
 
 export interface SecretsInterface {
-  /** Resolve an account's app password: env var, then the 0600 secrets file. */
+  /** Resolve an IMAP account's app password: env var, then the 0600 secrets file. */
   readonly appPassword: (account: ResolvedAccount) => Effect.Effect<Redacted.Redacted<string>, MailConfigError>
   /** Absolute path of the secrets file. */
   readonly secretsPath: string

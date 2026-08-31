@@ -10,6 +10,7 @@ import {
   type ResolvedAccount,
 } from "./config.js"
 import { MailError, mailError, toMailError } from "./errors.js"
+import { makeGmailImapMailService } from "./gmail-imap.js"
 import { makeICloudService } from "./icloud.js"
 import { Secrets } from "./secrets.js"
 import { type MailService, makeGmailMailService, makeICloudMailService } from "./service.js"
@@ -42,10 +43,31 @@ const GMAIL_CAPABILITIES: ReadonlySet<MailCapability> = new Set([
   "filters",
 ])
 
+const GMAIL_IMAP_CAPABILITIES: ReadonlySet<MailCapability> = new Set([
+  "read",
+  "downloadAttachments",
+  "archive",
+  "trash",
+  "markRead",
+  "unsubscribe",
+])
+
 /** Capabilities are a property of the account *type*, not the account name. */
 const TYPE_CAPABILITIES: Record<AccountType, ReadonlySet<MailCapability>> = {
   gmail: GMAIL_CAPABILITIES,
+  "gmail-imap": GMAIL_IMAP_CAPABILITIES,
   icloud: new Set(["read", "send", "archive", "trash", "unsubscribe"]),
+}
+
+export const supportsCapability = (account: ResolvedAccount, capability: MailCapability): boolean => {
+  if (
+    account.config.type === "gmail-imap" &&
+    account.config.smtpEnabled === true &&
+    (capability === "send" || capability === "reply" || capability === "forward")
+  ) {
+    return true
+  }
+  return TYPE_CAPABILITIES[account.config.type].has(capability)
 }
 
 /** Resolve an account's Gmail credential + token paths (config overrides, else derived from id). */
@@ -84,6 +106,7 @@ const acquireMailService = (account: ResolvedAccount): Effect.Effect<MailService
 
     const secrets = yield* Secrets
     const password = yield* secrets.appPassword(account).pipe(Effect.mapError(toMailError))
+    if (config.type === "gmail-imap") return makeGmailImapMailService(account.id, config, password)
     return makeICloudMailService(makeICloudService(account.id, config, password))
   })
 
@@ -114,7 +137,7 @@ export const requireAccount = (
     const accounts = yield* Accounts
     const account = yield* accounts.get(selection).pipe(Effect.mapError(toMailError))
 
-    if (!TYPE_CAPABILITIES[account.config.type].has(capability)) {
+    if (!supportsCapability(account, capability)) {
       return yield* Effect.fail(
         new MailError({ message: `${action} is not supported for ${account.config.type} account "${account.id}".` }),
       )

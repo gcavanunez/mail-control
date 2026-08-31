@@ -6,7 +6,7 @@ download attachments, archive, trash, mark read, and one-click unsubscribe —
 across as many accounts as you like, from one `mail` command.
 
 Accounts are **user-defined in a config file**, so nothing about the tool is tied
-to a particular person's setup. Add a Gmail or iCloud account by adding an entry
+to a particular person's setup. Add a Gmail API, Gmail IMAP, or iCloud account by adding an entry
 to `~/.mail-control/config.json`.
 
 ```bash
@@ -38,8 +38,9 @@ Use `bun run mail ...` only as a repo-local diagnostic fallback.
 ## Configure accounts
 
 mail-control reads `~/.mail-control/config.json`. Each entry under `accounts` has
-a `type` (`gmail` or `icloud`) and the account's non-secret settings. The map key
-is the account id you pass to `-a/--account`.
+a `type`: `gmail` for the Gmail API with OAuth, `gmail-imap` for Gmail with an
+app password, or `icloud`. The map key is the account id passed to
+`-a/--account`.
 
 ```jsonc
 {
@@ -49,6 +50,11 @@ is the account id you pass to `-a/--account`.
       "type": "gmail",
       "credentialsPath": "~/.mail-control/work-credentials.json",
       "tokenPath": "~/.mail-control/work-token.json"
+    },
+    "gmail-imap": {
+      "type": "gmail-imap",
+      "email": "you@gmail.com",
+      "smtpEnabled": false
     },
     "icloud": { "type": "icloud", "email": "you@icloud.com" }
   }
@@ -67,7 +73,7 @@ Then authorize each account with `mail auth <id>` and check setup at any time wi
 
 ```bash
 mail accounts          # per-account: ready, or what's still needed
-mail auth personal     # walks you through Gmail OAuth / iCloud password
+mail auth personal     # walks through OAuth or app-password setup
 ```
 
 ## Credentials & secrets
@@ -92,6 +98,21 @@ Gmail uses OAuth, and `mail auth <id>` runs the whole flow:
 
 On a headless machine (no browser), use `mail auth <id> --manual` to print a URL
 and paste the resulting code.
+
+### Gmail with an app password
+
+Use `type: "gmail-imap"` to avoid OAuth and connect through Gmail IMAP. Enable
+2-Step Verification, create a 16-character password at
+https://myaccount.google.com/apppasswords, then run:
+
+```bash
+mail auth gmail-imap
+```
+
+IMAP defaults to `imap.gmail.com:993`. Sending is deliberately unavailable until
+`"smtpEnabled": true` is set; SMTP then defaults to `smtp.gmail.com:465`. The
+same app password authenticates both protocols. Host, port, TLS, default mailbox,
+and app-password environment variable can be overridden per account.
 
 ### iCloud
 
@@ -121,8 +142,8 @@ IMAP/SMTP hosts default to iCloud's and can be overridden per account
 ```bash
 # Set up
 mail accounts               # list configured accounts and their setup status
-mail mailboxes [-a <id>|all] # list Gmail labels or iCloud IMAP mailboxes
-mail auth <id>              # authorize an account (Gmail OAuth / iCloud password)
+mail mailboxes [-a <id>|all] # list Gmail labels or IMAP mailboxes
+mail auth <id>              # authorize with OAuth or store an app password
 mail auth <id> --manual     # headless: paste a code instead of opening a browser
 mail tui                    # launch the interactive terminal inbox
 
@@ -136,7 +157,7 @@ mail download -a <id> <message-id> -o ./dir
 # Treat a Gmail label as a mailbox
 mail list -a personal --mailbox "birdwatching" --max 9
 
-# Write (Gmail supports all; iCloud supports send)
+# Write (Gmail API; Gmail IMAP when SMTP is enabled; iCloud send)
 mail send    -a <id> -t to@x.com -s "Subject" -b "Body" [-A file]
 mail reply   -a <id> <message-id> -b "Body"
 mail forward -a <id> <message-id> -t to@x.com
@@ -185,17 +206,18 @@ body without creating labels or the filter. Gmail filters cannot send mail to Sp
 `list`/`search`/`recent`). Add `--json` to any read/mutation command for
 machine-readable output. Use `-f/--body-file` for long message bodies.
 
-For Gmail, `--mailbox` on `list`, `search`, and `recent` selects a label and
-replaces the default `INBOX` constraint. For iCloud, it selects an IMAP mailbox
-and also applies to `read`.
+For Gmail API accounts, `--mailbox` on `list`, `search`, and `recent` selects a
+label and replaces the default `INBOX` constraint. For Gmail IMAP and iCloud it
+selects an IMAP mailbox and also applies to `read`.
 
-Run `mail mailboxes -a <id>` to discover accepted mailbox names. Gmail returns
-system and user labels; iCloud returns IMAP mailboxes. Add `--json` for IDs,
-kinds, and special-use metadata.
+Run `mail mailboxes -a <id>` to discover accepted mailbox names. Gmail API
+returns system and user labels; password accounts return IMAP mailboxes. Add
+`--json` for IDs, kinds, and special-use metadata.
 
-Capabilities are determined by account **type**: Gmail supports every command,
-including `filters`; iCloud supports read, send, archive, trash, and unsubscribe
-(for messages that expose standards-based `List-Unsubscribe` headers).
+Capabilities are determined by account **type**. Gmail API supports every
+command, including `filters`. Gmail IMAP supports read, attachments, archive,
+trash, mark-read, and unsubscribe; enabling SMTP also enables send, reply, and
+forward. iCloud supports read, send, archive, trash, and unsubscribe.
 
 ## Security notes
 
@@ -206,6 +228,8 @@ including `filters`; iCloud supports read, send, archive, trash, and unsubscribe
 - Secrets never appear in `config.json`, so it is safe to commit or share.
 - `.env` and credential/token files are gitignored.
 - Tokens and passwords are held as Effect `Redacted` values and never logged.
+- Gmail app passwords provide broad mailbox access even when SMTP is disabled in
+  the CLI. Revoke the password in Google Account settings if it is exposed.
 
 ## Agent skill
 
@@ -221,4 +245,5 @@ bun run lint
 ```
 
 The repo is a small workspace: `packages/gmail` is a standalone Effect-based Gmail
-client, and `packages/cli` is the multi-account CLI that unifies Gmail and iCloud.
+client, and `packages/cli` is the multi-account CLI that unifies Gmail API,
+Gmail IMAP/SMTP, and iCloud.

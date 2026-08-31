@@ -11,7 +11,7 @@ export const AccountId = Schema.String.pipe(Schema.brand("AccountId"))
 export type AccountId = Schema.Schema.Type<typeof AccountId>
 
 /** The provider kinds mail-control knows how to talk to. */
-export const AccountType = Schema.Literals(["gmail", "icloud"])
+export const AccountType = Schema.Literals(["gmail", "gmail-imap", "icloud"])
 export type AccountType = Schema.Schema.Type<typeof AccountType>
 
 /**
@@ -24,6 +24,24 @@ export const GmailAccountConfig = Schema.Struct({
   tokenPath: Schema.optionalKey(Schema.String),
 })
 export interface GmailAccountConfig extends Schema.Schema.Type<typeof GmailAccountConfig> {}
+
+/** Gmail over IMAP/SMTP, authenticated with an app password. */
+export const GmailImapAccountConfig = Schema.Struct({
+  type: Schema.Literal("gmail-imap"),
+  email: Schema.String,
+  /** Sending is unavailable unless explicitly enabled. */
+  smtpEnabled: Schema.optionalKey(Schema.Boolean),
+  /** Override the env var consulted for this account's app password. */
+  appPasswordEnv: Schema.optionalKey(Schema.String),
+  imapHost: Schema.optionalKey(Schema.String),
+  imapPort: Schema.optionalKey(Schema.Number),
+  imapSecure: Schema.optionalKey(Schema.Boolean),
+  smtpHost: Schema.optionalKey(Schema.String),
+  smtpPort: Schema.optionalKey(Schema.Number),
+  smtpSecure: Schema.optionalKey(Schema.Boolean),
+  mailbox: Schema.optionalKey(Schema.String),
+})
+export interface GmailImapAccountConfig extends Schema.Schema.Type<typeof GmailImapAccountConfig> {}
 
 /**
  * An iCloud-backed account. The app password is never stored here; it is
@@ -45,7 +63,7 @@ export const ICloudAccountConfig = Schema.Struct({
 export interface ICloudAccountConfig extends Schema.Schema.Type<typeof ICloudAccountConfig> {}
 
 /** A single account's configuration, discriminated on `type`. */
-export const AccountConfig = Schema.Union([GmailAccountConfig, ICloudAccountConfig]).annotate({
+export const AccountConfig = Schema.Union([GmailAccountConfig, GmailImapAccountConfig, ICloudAccountConfig]).annotate({
   discriminator: "type",
   identifier: "AccountConfig",
 })
