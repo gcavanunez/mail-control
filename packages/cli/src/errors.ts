@@ -4,7 +4,7 @@ import { Schema } from "effect"
  * A recoverable failure while talking to a mail provider (list, read, send,
  * mutate). Modeled as a schema-encodable tagged error per project convention.
  */
-export class MailError extends Schema.TaggedErrorClass<MailError>("mail-control/MailError")("MailError", {
+export class MailError extends Schema.TaggedError<MailError>()("MailError", {
   message: Schema.String,
   cause: Schema.optionalKey(Schema.Defect()),
 }) {}
@@ -12,13 +12,10 @@ export class MailError extends Schema.TaggedErrorClass<MailError>("mail-control/
 /**
  * A failure to load, decode, or resolve account configuration or credentials.
  */
-export class MailConfigError extends Schema.TaggedErrorClass<MailConfigError>("mail-control/MailConfigError")(
-  "MailConfigError",
-  {
-    message: Schema.String,
-    cause: Schema.optionalKey(Schema.Defect()),
-  },
-) {}
+export class MailConfigError extends Schema.TaggedError<MailConfigError>()("MailConfigError", {
+  message: Schema.String,
+  cause: Schema.optionalKey(Schema.Defect()),
+}) {}
 
 /** `Effect.mapError(mailError("..."))` — wrap a cause as a `MailError`. */
 export const mailError =

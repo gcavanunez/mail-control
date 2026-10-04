@@ -52,11 +52,11 @@ interface CredentialsFile {
 
 export class GmailConfig extends Context.Service<GmailConfig>()("@mail-control/gmail/GmailConfig", {
   make: Effect.gen(function* () {
-    const credentialsPath = yield* Config.string("GOOGLE_CLIENT_SECRET_PATH").pipe(
+    const credentialsPath = yield* Config.String("GOOGLE_CLIENT_SECRET_PATH").pipe(
       Config.orElse(() => Config.succeed(defaultGmailCredentialsPath())),
     )
-    const tokenPathOption = yield* Config.option(Config.string("GOOGLE_TOKEN_PATH"))
-    const scopesOption = yield* Config.option(Config.redacted("GOOGLE_SCOPES"))
+    const tokenPathOption = yield* Config.option(Config.String("GOOGLE_TOKEN_PATH"))
+    const scopesOption = yield* Config.option(Config.Redacted("GOOGLE_SCOPES"))
 
     const resolvedTokenPath = Option.match(tokenPathOption, {
       onNone: () => defaultGmailTokenPath(credentialsPath),

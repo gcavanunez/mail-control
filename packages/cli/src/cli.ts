@@ -25,68 +25,74 @@ import { printDownloadResult, printJson, printMessage, printSummaries } from "./
 import { Secrets, writeAppPassword } from "./secrets.js"
 import type { MailStatus } from "./types.js"
 
-const accountOption = Flag.string("account").pipe(
+const accountOption = Flag.String("account").pipe(
   Flag.withAlias("a"),
   Flag.withDefault("all"),
   Flag.withDescription("Account id from your config.json, or 'all' (default) for read/list/search"),
 )
 
-const maxOption = Flag.integer("max").pipe(
+const maxOption = Flag.Int("max").pipe(
   Flag.withAlias("m"),
   Flag.optional,
   Flag.withDescription("Maximum number of messages to list (default 10)"),
 )
 
-const queryOption = Flag.string("query").pipe(
+const queryOption = Flag.String("query").pipe(
   Flag.withAlias("q"),
   Flag.optional,
   Flag.withDescription("Optional search query"),
 )
-const unreadOption = Flag.boolean("unread").pipe(Flag.withDescription("Only show unread messages"))
-const readOption = Flag.boolean("read").pipe(Flag.withDescription("Only show read messages"))
-const jsonOption = Flag.boolean("json").pipe(Flag.withDescription("Print machine-readable JSON"))
+const unreadOption = Flag.Boolean("unread").pipe(
+  Flag.withDefault(false),
+  Flag.withDescription("Only show unread messages"),
+)
+const readOption = Flag.Boolean("read").pipe(Flag.withDefault(false), Flag.withDescription("Only show read messages"))
+const jsonOption = Flag.Boolean("json").pipe(
+  Flag.withDefault(false),
+  Flag.withDescription("Print machine-readable JSON"),
+)
 
-const sinceOption = Flag.string("since").pipe(
+const sinceOption = Flag.String("since").pipe(
   Flag.withDefault("24h"),
   Flag.withDescription("Lookback duration such as 24h, 2d, 6w, 12mo, or 1y"),
 )
 
-const mailboxOption = Flag.string("mailbox").pipe(
+const mailboxOption = Flag.String("mailbox").pipe(
   Flag.optional,
   Flag.withDescription("Mailbox to query (iCloud only, default INBOX)"),
 )
 
-const toOption = Flag.string("to").pipe(
+const toOption = Flag.String("to").pipe(
   Flag.withAlias("t"),
   Flag.atLeast(1),
   Flag.withDescription("Recipient email address (can be repeated: -t a@x.com -t b@x.com)"),
 )
-const subjectOption = Flag.string("subject").pipe(Flag.withAlias("s"), Flag.withDescription("Subject line"))
-const bodyOption = Flag.string("body").pipe(
+const subjectOption = Flag.String("subject").pipe(Flag.withAlias("s"), Flag.withDescription("Subject line"))
+const bodyOption = Flag.String("body").pipe(
   Flag.withAlias("b"),
   Flag.optional,
   Flag.withDescription("Plain text email body"),
 )
-const bodyFileOption = Flag.file("body-file").pipe(
+const bodyFileOption = Flag.File("body-file").pipe(
   Flag.withAlias("f"),
   Flag.optional,
   Flag.withDescription("Path to a text file containing the email body"),
 )
-const ccOption = Flag.string("cc").pipe(Flag.optional, Flag.withDescription("Optional CC recipients"))
-const bccOption = Flag.string("bcc").pipe(Flag.optional, Flag.withDescription("Optional BCC recipients"))
-const attachOption = Flag.file("attach").pipe(
+const ccOption = Flag.String("cc").pipe(Flag.optional, Flag.withDescription("Optional CC recipients"))
+const bccOption = Flag.String("bcc").pipe(Flag.optional, Flag.withDescription("Optional BCC recipients"))
+const attachOption = Flag.File("attach").pipe(
   Flag.withAlias("A"),
   Flag.atLeast(0),
   Flag.withDescription("File(s) to attach (can be repeated)"),
 )
 
-const outputDirOption = Flag.directory("output").pipe(
+const outputDirOption = Flag.Directory("output").pipe(
   Flag.withAlias("o"),
   Flag.withDefault("."),
   Flag.withDescription("Directory to save attachments to (default: current directory)"),
 )
 
-const messageIdArg = Argument.string("message-id").pipe(Argument.withDescription("Message ID"))
+const messageIdArg = Argument.String("message-id").pipe(Argument.withDescription("Message ID"))
 
 const resolveStatus = (readFlag: boolean, unreadFlag: boolean): Effect.Effect<MailStatus, MailError> => {
   if (readFlag && unreadFlag) {
@@ -193,7 +199,7 @@ const searchCommand = Command.make(
   "search",
   {
     account: accountOption,
-    query: Argument.string("query").pipe(Argument.withDescription("Search query")),
+    query: Argument.String("query").pipe(Argument.withDescription("Search query")),
     max: maxOption,
     unread: unreadOption,
     read: readOption,
@@ -247,7 +253,7 @@ const readCommand = Command.make(
   "read",
   {
     account: accountOption,
-    id: Argument.string("id").pipe(Argument.withDescription("Message id")),
+    id: Argument.String("id").pipe(Argument.withDescription("Message id")),
     mailbox: mailboxOption,
     json: jsonOption,
   },
@@ -365,7 +371,7 @@ const downloadCommand = Command.make(
   "download",
   {
     account: accountOption,
-    id: Argument.string("id").pipe(Argument.withDescription("Message id")),
+    id: Argument.String("id").pipe(Argument.withDescription("Message id")),
     outputDir: outputDirOption,
     json: jsonOption,
   },
@@ -385,7 +391,7 @@ const mutationCommand = <A>(
     name,
     {
       account: accountOption,
-      id: Argument.string("id").pipe(Argument.withDescription("Message id")),
+      id: Argument.String("id").pipe(Argument.withDescription("Message id")),
       json: jsonOption,
     },
     ({ account, id, json }) =>
@@ -408,8 +414,9 @@ const unsubscribeCommand = mutationCommand("unsubscribe", "Unsubscribed from", u
 const authCommand = Command.make(
   "auth",
   {
-    account: Argument.string("account").pipe(Argument.withDescription("Account id from your config.json")),
-    manual: Flag.boolean("manual").pipe(
+    account: Argument.String("account").pipe(Argument.withDescription("Account id from your config.json")),
+    manual: Flag.Boolean("manual").pipe(
+      Flag.withDefault(false),
       Flag.withDescription("Headless: print a URL and paste the code instead of opening a browser"),
     ),
   },

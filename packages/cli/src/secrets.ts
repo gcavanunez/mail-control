@@ -78,7 +78,7 @@ export const layer = Layer.effect(
     const appPassword = (account: ResolvedAccount): Effect.Effect<Redacted.Redacted<string>, MailConfigError> =>
       Effect.gen(function* () {
         const envName = appPasswordEnvVar(account)
-        const fromEnv = yield* Config.option(Config.redacted(envName)).pipe(
+        const fromEnv = yield* Config.option(Config.Redacted(envName)).pipe(
           Effect.mapError(mailConfigError(`Failed to read env ${envName}`)),
         )
         if (Option.isSome(fromEnv)) return fromEnv.value

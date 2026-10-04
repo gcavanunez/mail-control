@@ -107,7 +107,7 @@ export const layer = Layer.effect(
   Accounts,
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem
-    const dir = yield* Config.string("MAIL_CONTROL_DIR").pipe(Config.withDefault(defaultDir))
+    const dir = yield* Config.String("MAIL_CONTROL_DIR").pipe(Config.withDefault(defaultDir))
     const configPath = path.join(dir, "config.json")
 
     const exists = yield* fs.exists(configPath).pipe(Effect.orElseSucceed(() => false))

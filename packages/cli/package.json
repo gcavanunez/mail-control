@@ -35,7 +35,7 @@
   },
   "dependencies": {
     "@effect/platform-node": "catalog:",
-    "@effect/sql-sqlite-bun": "4.0.0-beta.90",
+    "@effect/sql-sqlite-bun": "4.0.0-rc.115",
     "@mail-control/gmail": "workspace:*",
     "@opentui/core": "0.4.2",
     "@opentui/react": "0.4.2",
@@ -54,7 +54,7 @@
     "@types/react": "19.2.17",
     "@types/turndown": "5.0.5",
     "typescript": "catalog:",
-    "vitest": "4.0.18"
+    "vitest": "5.0.1"
   },
   "keywords": [
     "mail",
