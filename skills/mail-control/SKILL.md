@@ -7,6 +7,8 @@ description: Use the local mail-control CLI for Gmail and iCloud email tasks. Us
 
 Use the local `mail` CLI instead of browser automation when it can complete the email task.
 
+The `-t` / `--to` option accepts either an email address or an exact Apple Contacts name. Contact names resolve through the global `contacts` CLI; use the `contacts-control` skill to inspect ambiguous or missing contact information.
+
 ## Command Resolution
 
 - Use the globally linked `mail` command. Verify it with `command -v mail` and `mail --help`; the check passes when help lists the `list`, `search`, `send`, and `accounts` subcommands.

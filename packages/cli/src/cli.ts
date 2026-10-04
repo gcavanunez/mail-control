@@ -65,7 +65,7 @@ const mailboxOption = Flag.String("mailbox").pipe(
 const toOption = Flag.String("to").pipe(
   Flag.withAlias("t"),
   Flag.atLeast(1),
-  Flag.withDescription("Recipient email address (can be repeated: -t a@x.com -t b@x.com)"),
+  Flag.withDescription("Recipient email address or Apple contact name (repeatable)"),
 )
 const subjectOption = Flag.String("subject").pipe(Flag.withAlias("s"), Flag.withDescription("Subject line"))
 const bodyOption = Flag.String("body").pipe(

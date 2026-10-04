@@ -1,5 +1,7 @@
+import { execFile } from "node:child_process"
 import path from "node:path"
-import { Effect, FileSystem } from "effect"
+import { promisify } from "node:util"
+import { Effect, FileSystem, Schema } from "effect"
 import { lookup as lookupMime } from "mime-types"
 import type { DownloadedAttachment } from "./service.js"
 import { type Attachment, MailError, type MailMessageBody, type ReplyMailInput, type SendMailInput } from "./types.js"
@@ -43,10 +45,46 @@ const escapeHtml = (value: string): string =>
 
 const htmlLines = (value: string): string => escapeHtml(value).replace(/\n/g, "<br>")
 
+const Contact = Schema.Struct({
+  displayName: Schema.String,
+  emails: Schema.Array(Schema.String),
+})
+
+const execFileAsync = promisify(execFile)
+
+const resolveRecipient = Effect.fn("Mail.resolveRecipient")(function* (recipient: string) {
+  if (recipient.includes("@")) return recipient
+
+  const result = yield* Effect.tryPromise({
+    try: async () => {
+      const result = await execFileAsync("contacts", ["resolve", recipient, "--json"])
+      return { stdout: result.stdout, stderr: result.stderr }
+    },
+    catch: (cause) =>
+      new MailError({
+        message: `Could not resolve contact '${recipient}': ${cause instanceof Error ? cause.message : String(cause)}`,
+      }),
+  })
+
+  const contact = yield* Effect.try({
+    try: () => JSON.parse(result.stdout) as unknown,
+    catch: (cause) => new MailError({ message: `Invalid contact data for '${recipient}'`, cause }),
+  }).pipe(
+    Effect.flatMap(Schema.decodeUnknownEffect(Contact)),
+    Effect.mapError((cause) => new MailError({ message: `Invalid contact data for '${recipient}'`, cause })),
+  )
+
+  const email = contact.emails[0]
+  if (email === undefined) {
+    return yield* new MailError({ message: `Contact '${contact.displayName}' has no email address.` })
+  }
+  return email
+})
+
 const requireRecipients = (to: readonly string[]): Effect.Effect<string, MailError> =>
   to.length === 0
     ? Effect.fail(new MailError({ message: "At least one recipient (-t) is required." }))
-    : Effect.succeed(to.join(", "))
+    : Effect.forEach(to, resolveRecipient).pipe(Effect.map((recipients) => recipients.join(", ")))
 
 export const resolveBody = ({
   body,
