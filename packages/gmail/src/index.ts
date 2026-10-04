@@ -32,13 +32,15 @@
  * ```
  */
 
-export { type AuthorizeGmailOptions, authorizeGmail, GMAIL_SCOPES } from "./auth.js"
+export { type AuthorizeGmailOptions, authorizeGmail, GMAIL_SCOPES, GMAIL_SETTINGS_SCOPE } from "./auth.js"
 export { defaultGmailCredentialsPath, defaultGmailTokenPath } from "./paths.js"
 export {
   GmailConfig,
   type GmailInstanceConfig,
   GmailService,
   type GmailServiceInterface,
+  isInsufficientScopeError,
+  lacksGrantedScope,
   makeGmailService,
   parseListUnsubscribe,
 } from "./service.js"
@@ -50,8 +52,14 @@ export {
   GmailConfigError,
   type GmailDraftInfo,
   GmailError,
+  type GmailFilter,
+  type GmailFilterAction,
+  type GmailFilterCriteria,
+  type GmailFilterInput,
+  type GmailLabel,
   type GmailMessageBody,
   type GmailMessageSummary,
+  GmailScopeError,
   type GmailUnsubscribeMethod,
   type GmailUnsubscribeResult,
   type ListMessagesOptions,

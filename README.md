@@ -142,15 +142,48 @@ mail archive     -a <id> <message-id>
 mail trash       -a <id> <message-id>
 mail mark-read   -a <id> <message-id>
 mail unsubscribe -a <id> <message-id>
+
+# Gmail filters (Gmail only; -a required)
+mail filters list   -a <id> [--json]
+mail filters create -a <id> [--from X] [--to X] [--subject X] [--query Q] [--has-words Q]
+                    [--negated-query Q] [--skip-inbox] [--mark-read] [--label NAME]
+                    [--trash] [--never-spam] [--dry-run] [--json]
+mail filters delete -a <id> <filter-id>
 ```
+
+### Gmail filters
+
+`mail filters` manages Gmail filters through `users.settings.filters`, which needs
+the `https://www.googleapis.com/auth/gmail.settings.basic` scope. Tokens authorized
+before filter support lack it, and filter commands fail with the fix:
+
+```text
+mail: Account "work" hasn't granted Gmail filter access (https://www.googleapis.com/auth/gmail.settings.basic).
+Re-authorize it in a browser with:  mail auth work
+```
+
+`mail auth <id>` requests the full scope set (send, modify, compose, settings), so
+existing commands keep working. Tick every permission on Google's consent screen.
+
+```bash
+mail filters create -a work --from notifications@stripe.com --subject '"test mode"' \
+  --skip-inbox --mark-read --label Stripe/test-mode --dry-run
+```
+
+`--label` resolves an existing label case-insensitively and creates missing labels
+(parents first, so `Stripe/test-mode` nests under `Stripe`). `--has-words` and
+`--query` both fill Gmail's "Has the words" field. `--dry-run` prints the request
+body without creating labels or the filter. Gmail filters cannot send mail to Spam
+(the API rejects `SPAM`), so `--spam` fails with a suggestion; use `--skip-inbox
+--mark-read --label <name>` or `--trash` instead.
 
 `-a/--account` accepts any id from your config, or `all` (default for
 `list`/`search`/`recent`). Add `--json` to any read/mutation command for
 machine-readable output. Use `-f/--body-file` for long message bodies.
 
-Capabilities are determined by account **type**: Gmail supports every command;
-iCloud supports read, send, archive, trash, and unsubscribe (for messages that
-expose standards-based `List-Unsubscribe` headers).
+Capabilities are determined by account **type**: Gmail supports every command,
+including `filters`; iCloud supports read, send, archive, trash, and unsubscribe
+(for messages that expose standards-based `List-Unsubscribe` headers).
 
 ## Security notes
 

@@ -19,6 +19,7 @@ import {
 } from "./app.js"
 import { Accounts } from "./config.js"
 import { MailError, toMailError } from "./errors.js"
+import { filtersCommand } from "./filters.js"
 import { makeICloudService } from "./icloud.js"
 import { mailLayer } from "./layers.js"
 import { printDownloadResult, printJson, printMessage, printSummaries } from "./renderer.js"
@@ -520,6 +521,7 @@ const root = Command.make("mail", {}).pipe(
     trashCommand,
     markReadCommand,
     unsubscribeCommand,
+    filtersCommand,
     authCommand,
     accountsCommand,
     tuiCommand,

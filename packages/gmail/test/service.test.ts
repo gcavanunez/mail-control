@@ -2,11 +2,12 @@ import path from "node:path"
 import { ConfigProvider, Effect } from "effect"
 import { describe, expect, it } from "vitest"
 import { defaultGmailTokenPath } from "../src/paths"
-import { GmailConfig, parseListUnsubscribe } from "../src/service"
+import { GmailConfig, isInsufficientScopeError, lacksGrantedScope, parseListUnsubscribe } from "../src/service"
 import { GmailConfigError } from "../src/types"
 
 const DEFAULT_SEND_SCOPE = "https://www.googleapis.com/auth/gmail.send"
 const DEFAULT_COMPOSE_SCOPE = "https://www.googleapis.com/auth/gmail.compose"
+const SETTINGS_SCOPE = "https://www.googleapis.com/auth/gmail.settings.basic"
 
 describe("GmailConfig", () => {
   it("provides sensible defaults", async () => {
@@ -33,6 +34,7 @@ describe("GmailConfig", () => {
       DEFAULT_SEND_SCOPE,
       "https://www.googleapis.com/auth/gmail.modify",
       DEFAULT_COMPOSE_SCOPE,
+      SETTINGS_SCOPE,
     ])
   })
 
@@ -103,5 +105,38 @@ describe("parseListUnsubscribe", () => {
     expect(parseListUnsubscribe("not a url, https://example.com/unsubscribe").map(String)).toEqual([
       "https://example.com/unsubscribe",
     ])
+  })
+})
+
+describe("scope detection", () => {
+  it("recognizes Gmail's insufficient-scope 403", () => {
+    expect(
+      isInsufficientScopeError({
+        status: 403,
+        message: "Request had insufficient authentication scopes.",
+        errors: [{ reason: "insufficientPermissions", domain: "global" }],
+      }),
+    ).toBe(true)
+    expect(
+      isInsufficientScopeError({
+        response: {
+          status: 403,
+          data: { error: { code: 403, details: [{ reason: "ACCESS_TOKEN_SCOPE_INSUFFICIENT" }] } },
+        },
+      }),
+    ).toBe(true)
+  })
+
+  it("ignores other failures", () => {
+    expect(isInsufficientScopeError({ status: 403, message: "Rate limit exceeded" })).toBe(false)
+    expect(isInsufficientScopeError({ status: 400, message: "Invalid label SPAM in AddLabelIds" })).toBe(false)
+    expect(isInsufficientScopeError(new Error("network down"))).toBe(false)
+  })
+
+  it("checks a token's granted scopes when known", () => {
+    const granted = `${DEFAULT_SEND_SCOPE} https://www.googleapis.com/auth/gmail.modify`
+    expect(lacksGrantedScope(granted, SETTINGS_SCOPE)).toBe(true)
+    expect(lacksGrantedScope(`${granted} ${SETTINGS_SCOPE}`, SETTINGS_SCOPE)).toBe(false)
+    expect(lacksGrantedScope(undefined, SETTINGS_SCOPE)).toBe(false)
   })
 })

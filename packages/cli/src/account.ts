@@ -1,5 +1,5 @@
 import path from "node:path"
-import { type GmailInstanceConfig, makeGmailService } from "@mail-control/gmail"
+import { type GmailInstanceConfig, type GmailServiceInterface, makeGmailService } from "@mail-control/gmail"
 import { Effect } from "effect"
 import {
   type AccountId,
@@ -27,6 +27,7 @@ export type MailCapability =
   | "trash"
   | "markRead"
   | "unsubscribe"
+  | "filters"
 
 const GMAIL_CAPABILITIES: ReadonlySet<MailCapability> = new Set([
   "read",
@@ -38,6 +39,7 @@ const GMAIL_CAPABILITIES: ReadonlySet<MailCapability> = new Set([
   "trash",
   "markRead",
   "unsubscribe",
+  "filters",
 ])
 
 /** Capabilities are a property of the account *type*, not the account name. */
@@ -51,6 +53,23 @@ export const gmailAccountPaths = (id: AccountId, config: GmailAccountConfig, dir
   credentialsPath: expandHome(config.credentialsPath ?? path.join(dir, `${id}-credentials.json`)),
   tokenPath: expandHome(config.tokenPath ?? path.join(dir, `${id}-token.json`)),
 })
+
+/** Acquire the raw Gmail client for Gmail-only features such as filters. */
+export const withGmail = <A, R>(
+  account: ResolvedAccount,
+  run: (gmail: GmailServiceInterface) => Effect.Effect<A, MailError, R>,
+): Effect.Effect<A, MailError, R | Accounts> =>
+  Effect.gen(function* () {
+    const config = account.config
+    if (config.type !== "gmail") {
+      return yield* new MailError({ message: `Account "${account.id}" is not a Gmail account.` })
+    }
+    const accounts = yield* Accounts
+    const gmail = yield* makeGmailService(gmailAccountPaths(account.id, config, accounts.dir)).pipe(
+      Effect.mapError(mailError(`Could not initialize account "${account.id}" — run: mail auth ${account.id}`)),
+    )
+    return yield* run(gmail)
+  })
 
 const acquireMailService = (account: ResolvedAccount): Effect.Effect<MailService["Service"], MailError, AccountEnv> =>
   Effect.gen(function* () {

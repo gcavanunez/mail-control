@@ -7,15 +7,19 @@ import { Console, Effect } from "effect"
 import { google } from "googleapis"
 import { GmailAuthError, GmailConfigError } from "./types.js"
 
+/** Scope required to read and manage Gmail filters (`users.settings.filters`). */
+export const GMAIL_SETTINGS_SCOPE = "https://www.googleapis.com/auth/gmail.settings.basic"
+
 /**
- * Scopes mail-control needs: send, modify (archive/trash/mark-read/labels), and
- * compose. Must stay in sync with the service's default scopes so a token minted
- * here can perform every supported operation.
+ * Scopes mail-control needs: send, modify (archive/trash/mark-read/labels),
+ * compose, and basic settings (filters). Must stay in sync with the service's
+ * default scopes so a token minted here can perform every supported operation.
  */
 export const GMAIL_SCOPES = [
   "https://www.googleapis.com/auth/gmail.send",
   "https://www.googleapis.com/auth/gmail.modify",
   "https://www.googleapis.com/auth/gmail.compose",
+  GMAIL_SETTINGS_SCOPE,
 ] as const
 
 const DEFAULT_PORT = 8374

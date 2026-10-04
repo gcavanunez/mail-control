@@ -5,12 +5,15 @@ import process from "node:process"
 import readline from "node:readline/promises"
 import { Config, Console, Context, Effect, Layer, Option, Redacted } from "effect"
 import { type gmail_v1, google } from "googleapis"
-import { GMAIL_SCOPES } from "./auth.js"
+import { GMAIL_SCOPES, GMAIL_SETTINGS_SCOPE } from "./auth.js"
 import { defaultGmailCredentialsPath, defaultGmailTokenPath } from "./paths.js"
 import type {
   CreateDraftInput,
   GmailAttachmentMeta,
   GmailDraftInfo,
+  GmailFilter,
+  GmailFilterInput,
+  GmailLabel,
   GmailMessageBody,
   GmailMessageSummary,
   GmailUnsubscribeResult,
@@ -18,7 +21,7 @@ import type {
   ReplyEmailInput,
   SendEmailInput,
 } from "./types.js"
-import { GmailAuthError, GmailConfigError, GmailError } from "./types.js"
+import { GmailAuthError, GmailConfigError, GmailError, GmailScopeError } from "./types.js"
 
 const DEFAULT_SCOPES = [...GMAIL_SCOPES]
 type GmailOAuth2Client = InstanceType<typeof google.auth.OAuth2>
@@ -249,6 +252,62 @@ export interface GmailServiceInterface {
   unsubscribeFromMessage: (
     id: string,
   ) => Effect.Effect<GmailUnsubscribeResult, GmailError | GmailConfigError | GmailAuthError>
+  listLabels: () => Effect.Effect<GmailLabel[], GmailError | GmailConfigError | GmailAuthError>
+  createLabel: (name: string) => Effect.Effect<GmailLabel, GmailError | GmailConfigError | GmailAuthError>
+  listFilters: () => Effect.Effect<GmailFilter[], GmailError | GmailConfigError | GmailAuthError | GmailScopeError>
+  createFilter: (
+    input: GmailFilterInput,
+  ) => Effect.Effect<GmailFilter, GmailError | GmailConfigError | GmailAuthError | GmailScopeError>
+  deleteFilter: (id: string) => Effect.Effect<void, GmailError | GmailConfigError | GmailAuthError | GmailScopeError>
+}
+
+/**
+ * True when a Gmail API failure means the OAuth token lacks a required scope
+ * (HTTP 403 `insufficientPermissions` / `ACCESS_TOKEN_SCOPE_INSUFFICIENT`).
+ */
+export const isInsufficientScopeError = (cause: unknown): boolean => {
+  if (typeof cause !== "object" || cause === null) return false
+  const error = cause as {
+    readonly status?: unknown
+    readonly code?: unknown
+    readonly message?: unknown
+    readonly errors?: unknown
+    readonly response?: { readonly status?: unknown; readonly data?: unknown }
+  }
+  const status = Number(error.status ?? error.response?.status ?? error.code)
+  if (status !== 403) return false
+  let details: string
+  try {
+    details = JSON.stringify([error.message, error.errors, error.response?.data])
+  } catch {
+    details = String(error.message)
+  }
+  return /insufficientPermissions|ACCESS_TOKEN_SCOPE_INSUFFICIENT|insufficient authentication scopes/i.test(details)
+}
+
+/** True when a token's granted `scope` string is known and lacks `scope`. */
+export const lacksGrantedScope = (granted: string | null | undefined, scope: string): boolean =>
+  typeof granted === "string" && !granted.split(/\s+/).includes(scope)
+
+const present = <A>(value: A | null | undefined): value is A => value !== null && value !== undefined
+
+const toGmailFilter = (filter: gmail_v1.Schema$Filter): GmailFilter => {
+  const criteria = filter.criteria ?? {}
+  const action = filter.action ?? {}
+  return {
+    id: filter.id ?? "",
+    criteria: {
+      ...(present(criteria.from) ? { from: criteria.from } : {}),
+      ...(present(criteria.to) ? { to: criteria.to } : {}),
+      ...(present(criteria.subject) ? { subject: criteria.subject } : {}),
+      ...(present(criteria.query) ? { query: criteria.query } : {}),
+      ...(present(criteria.negatedQuery) ? { negatedQuery: criteria.negatedQuery } : {}),
+    },
+    action: {
+      ...(present(action.addLabelIds) ? { addLabelIds: action.addLabelIds } : {}),
+      ...(present(action.removeLabelIds) ? { removeLabelIds: action.removeLabelIds } : {}),
+    },
+  }
 }
 
 export const parseListUnsubscribe = (value: string): readonly URL[] => {
@@ -934,6 +993,97 @@ export const makeGmailService = (
         return summaries.filter((summary) => summary !== null)
       })
 
+    const listLabels = (): Effect.Effect<GmailLabel[], GmailError | GmailConfigError | GmailAuthError> =>
+      Effect.gen(function* () {
+        const client = yield* ensureAuthorized()
+        const gmail = google.gmail({ version: "v1", auth: client })
+        const response = yield* Effect.tryPromise({
+          try: () => gmail.users.labels.list({ userId: "me" }),
+          catch: (cause) => new GmailError({ message: "Failed to list Gmail labels", cause }),
+        })
+        return (response.data.labels ?? []).flatMap((label) =>
+          label.id && label.name
+            ? [{ id: label.id, name: label.name, ...(present(label.type) ? { type: label.type } : {}) }]
+            : [],
+        )
+      })
+
+    const createLabel = (name: string): Effect.Effect<GmailLabel, GmailError | GmailConfigError | GmailAuthError> =>
+      Effect.gen(function* () {
+        const client = yield* ensureAuthorized()
+        const gmail = google.gmail({ version: "v1", auth: client })
+        const response = yield* Effect.tryPromise({
+          try: () =>
+            gmail.users.labels.create({
+              userId: "me",
+              requestBody: { name, labelListVisibility: "labelShow", messageListVisibility: "show" },
+            }),
+          catch: (cause) => new GmailError({ message: `Failed to create Gmail label "${name}"`, cause }),
+        })
+        return { id: response.data.id ?? "", name: response.data.name ?? name, type: response.data.type ?? "user" }
+      })
+
+    const missingSettingsScope = (cause?: unknown) =>
+      new GmailScopeError({
+        message: `Gmail token is missing the ${GMAIL_SETTINGS_SCOPE} scope required to manage filters`,
+        scope: GMAIL_SETTINGS_SCOPE,
+        ...(cause !== undefined ? { cause } : {}),
+      })
+
+    // Fail before any request when the stored token says the settings scope was
+    // never granted, so `create` doesn't leave a new label behind.
+    const settingsClient = (): Effect.Effect<
+      gmail_v1.Gmail,
+      GmailError | GmailConfigError | GmailAuthError | GmailScopeError
+    > =>
+      Effect.gen(function* () {
+        const client = yield* ensureAuthorized()
+        if (lacksGrantedScope(client.credentials.scope, GMAIL_SETTINGS_SCOPE)) {
+          return yield* missingSettingsScope()
+        }
+        return google.gmail({ version: "v1", auth: client })
+      })
+
+    const settingsRequest = <A>(message: string, request: () => Promise<A>) =>
+      Effect.tryPromise({
+        try: request,
+        catch: (cause) =>
+          isInsufficientScopeError(cause) ? missingSettingsScope(cause) : new GmailError({ message, cause }),
+      })
+
+    const listFilters = (): Effect.Effect<
+      GmailFilter[],
+      GmailError | GmailConfigError | GmailAuthError | GmailScopeError
+    > =>
+      Effect.gen(function* () {
+        const gmail = yield* settingsClient()
+        const response = yield* settingsRequest("Failed to list Gmail filters", () =>
+          gmail.users.settings.filters.list({ userId: "me" }),
+        )
+        return (response.data.filter ?? []).map(toGmailFilter)
+      })
+
+    const createFilter = (
+      input: GmailFilterInput,
+    ): Effect.Effect<GmailFilter, GmailError | GmailConfigError | GmailAuthError | GmailScopeError> =>
+      Effect.gen(function* () {
+        const gmail = yield* settingsClient()
+        const response = yield* settingsRequest("Failed to create Gmail filter", () =>
+          gmail.users.settings.filters.create({ userId: "me", requestBody: input }),
+        )
+        return toGmailFilter(response.data)
+      })
+
+    const deleteFilter = (
+      id: string,
+    ): Effect.Effect<void, GmailError | GmailConfigError | GmailAuthError | GmailScopeError> =>
+      Effect.gen(function* () {
+        const gmail = yield* settingsClient()
+        yield* settingsRequest(`Failed to delete Gmail filter ${id}`, () =>
+          gmail.users.settings.filters.delete({ userId: "me", id }),
+        )
+      })
+
     return {
       authorize: ensureAuthorized,
       sendEmail,
@@ -946,6 +1096,11 @@ export const makeGmailService = (
       trashMessage,
       markMessageRead,
       unsubscribeFromMessage,
+      listLabels,
+      createLabel,
+      listFilters,
+      createFilter,
+      deleteFilter,
     } as const
   })
 

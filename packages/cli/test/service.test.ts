@@ -17,6 +17,11 @@ const makeGmail = (overrides: Partial<GmailServiceInterface> = {}): GmailService
   trashMessage: () => Effect.void,
   markMessageRead: () => Effect.void,
   unsubscribeFromMessage: () => Effect.succeed({ method: "one-click", destination: "https://example.com" }),
+  listLabels: () => Effect.succeed([]),
+  createLabel: () => Effect.die("not implemented"),
+  listFilters: () => Effect.succeed([]),
+  createFilter: () => Effect.die("not implemented"),
+  deleteFilter: () => Effect.void,
   ...overrides,
 })
 

@@ -1,6 +1,6 @@
 ---
 name: mail-control
-description: Use the local mail-control CLI for Gmail and iCloud email tasks. Use when asked to list, search, read, inspect recent mail, unsubscribe, trash/delete mail, send, reply, forward, download attachments, archive, mark read, set up mail accounts, debug mail-control, or operate email from the terminal instead of a browser.
+description: Use the local mail-control CLI for Gmail and iCloud email tasks. Use when asked to list, search, read, inspect recent mail, unsubscribe, trash/delete mail, send, reply, forward, download attachments, archive, mark read, manage Gmail filters, set up mail accounts, debug mail-control, or operate email from the terminal instead of a browser.
 ---
 
 # Mail Control
@@ -25,7 +25,7 @@ directory with `MAIL_CONTROL_DIR`). Each account has an id (the map key) and a
 - Pass `-a <id>` / `--account <id>` whenever the account matters.
 - `all` is the default for `list`, `search`, and `recent`; use a concrete id for single-message mutations.
 - Discover configured ids by reading `config.json` or running a command and seeing the `[id]` tags in output.
-- Capabilities depend on type: Gmail supports every command; iCloud supports read, send, archive, and trash.
+- Capabilities depend on type: Gmail supports every command, including `filters`; iCloud supports read, send, archive, and trash.
 - For iCloud mailbox-specific reads/lists/searches, pass `--mailbox <name>` (e.g. `"Sent Messages"`, `Archive`).
 
 ## Credentials
@@ -118,6 +118,23 @@ mail trash -a personal <message-id>
 mail mark-read -a personal <message-id>
 mail unsubscribe -a personal <message-id>
 ```
+
+Gmail filters (Gmail accounts only; `-a` is required):
+
+```bash
+mail filters list -a work [--json]
+mail filters create -a work --from notifications@stripe.com --subject '"test mode"' \
+  --skip-inbox --mark-read --label Stripe/test-mode --dry-run   # prints the request body
+mail filters create -a work --from notifications@stripe.com --subject '"test mode"' \
+  --skip-inbox --mark-read --label Stripe/test-mode             # prints the new filter id
+mail filters delete -a work <filter-id>
+```
+
+- Criteria: `--from`, `--to`, `--subject`, `--query`, `--has-words` (joined with `--query`), `--negated-query`.
+- Actions: `--skip-inbox`, `--mark-read`, `--label <name>` (resolved case-insensitively; missing labels and parents are created), `--trash`, `--never-spam`.
+- Gmail filters cannot send mail to Spam (the API rejects `SPAM` in `addLabelIds`), so `--spam` fails. For "send to junk", use `--skip-inbox --mark-read --label <name>`, or `--trash` if the mail is truly disposable.
+- Filters need the `gmail.settings.basic` scope. Tokens minted before filter support lack it; filter commands then fail with `Re-authorize it in a browser with: mail auth <id>`. That re-auth needs the user at a browser, so report the command instead of running it. It requests the full scope set, so send/modify keep working.
+- Run `--dry-run` first and get approval before creating or deleting filters; they act on all future mail.
 
 ## Safety
 

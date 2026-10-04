@@ -144,6 +144,42 @@ export interface GmailUnsubscribeResult {
 }
 
 /**
+ * Message criteria a Gmail filter matches, mirroring `users.settings.filters`.
+ */
+export interface GmailFilterCriteria {
+  from?: string
+  to?: string
+  subject?: string
+  /** Gmail search terms the message must match ("Has the words") */
+  query?: string
+  /** Gmail search terms the message must not match ("Doesn't have") */
+  negatedQuery?: string
+}
+
+/**
+ * Actions a Gmail filter applies, expressed as label changes.
+ */
+export interface GmailFilterAction {
+  addLabelIds?: string[]
+  removeLabelIds?: string[]
+}
+
+export interface GmailFilterInput {
+  criteria: GmailFilterCriteria
+  action: GmailFilterAction
+}
+
+export interface GmailFilter extends GmailFilterInput {
+  id: string
+}
+
+export interface GmailLabel {
+  id: string
+  name: string
+  type?: string
+}
+
+/**
  * Error thrown when configuration values are missing or invalid.
  */
 export class GmailConfigError extends TaggedError("GmailConfigError") {}
@@ -157,3 +193,13 @@ export class GmailError extends TaggedError("GmailError") {}
  * Error thrown when OAuth2 authorization fails or is cancelled.
  */
 export class GmailAuthError extends TaggedError("GmailAuthError") {}
+
+/**
+ * Error raised when the stored OAuth token lacks a scope an operation needs.
+ * Recover by re-running the authorization flow with the full scope set.
+ */
+export class GmailScopeError extends Data.TaggedError("GmailScopeError")<{
+  readonly message: string
+  readonly scope: string
+  readonly cause?: unknown
+}> {}
